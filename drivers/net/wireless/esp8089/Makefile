@@ -11,9 +11,9 @@ KVERS_ARCH ?= $(shell arch)
 # a separate directory.
 KBUILD ?= $(PWD)
 
-ifeq (,$(KBUILD))
-$(error Kernel build tree not found - please set KBUILD to configured kernel)
-endif
+#ifeq (,$(KBUILD))
+#$(error Kernel build tree not found - please set KBUILD to configured kernel)
+#endif
 
 KCONFIG := $(KBUILD)/.config
 ifeq (,$(wildcard $(KCONFIG)))

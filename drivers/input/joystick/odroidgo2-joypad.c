@@ -438,6 +438,11 @@ static int joypad_adc_check(struct input_polled_dev *poll_dev)
 		value = value > adc->max ? adc->max : value;
 		value = value < adc->min ? adc->min : value;
 
+        if (abs(value) < 20)
+        {
+            value = 0;
+        }
+
 		if (nbtn == 0)
 		{
 			// adc-x value is default inverted(h/w)
