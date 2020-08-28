@@ -24,11 +24,6 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 
-		reboot-mode {
-			mode-charge = <BOOT_CHARGING>;
-			mode-ums = <BOOT_UMS>;
-		};
-
 		pvtm: pvtm {
 			compatible = "rockchip,px30-pvtm";
 			clocks = <&cru SCLK_PVTM>;
@@ -780,6 +775,10 @@
 		clocks = <&pmucru SCLK_PVTM_PMU>;
 		clock-names = "pmu";
 		status = "okay";
+	};
+	reboot-mode {
+		mode-charge = <BOOT_CHARGING>;
+		mode-ums = <BOOT_UMS>;
 	};
 };
 
