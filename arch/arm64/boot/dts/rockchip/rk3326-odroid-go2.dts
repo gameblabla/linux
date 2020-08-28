@@ -186,6 +186,47 @@
 		};
 	};
 
+	gpu_opp_table: gpu-opp-table {
+		compatible = "operating-points-v2";
+
+		rockchip,thermal-zone = "soc-thermal";
+		rockchip,temp-hysteresis = <5000>;
+		rockchip,low-temp = <0>;
+		rockchip,low-temp-min-volt = <1000000>;
+		rockchip,low-temp-adjust-volt = <
+			/* MHz    MHz    uV */
+			0      480     50000
+		>;
+
+		rockchip,max-volt = <1175000>;
+		rockchip,evb-irdrop = <25000>;
+
+		rockchip,pvtm-voltage-sel = <
+			0        50000   0
+			50001    54000   1
+			54001    60000   2
+			60001    99999   3
+		>;
+		rockchip,pvtm-ch = <0 0>;
+
+		opp-400000000 {
+			opp-hz = /bits/ 64 <400000000>;
+			opp-microvolt = <1050000>;
+			opp-microvolt-L0 = <1050000>;
+			opp-microvolt-L1 = <1025000>;
+			opp-microvolt-L2 = <975000>;
+			opp-microvolt-L3 = <950000>;
+		};
+		opp-480000000 {
+			opp-hz = /bits/ 64 <480000000>;
+			opp-microvolt = <1125000>;
+			opp-microvolt-L0 = <1125000>;
+			opp-microvolt-L1 = <1100000>;
+			opp-microvolt-L2 = <1050000>;
+			opp-microvolt-L3 = <1000000>;
+		};
+	};
+
 	leds: gpio-leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
@@ -345,17 +386,32 @@
 	status = "okay";
 
 	ports {
-		mipi_out: port@1 {
-			reg = <1>;
+                #address-cells = <1>;
+                #size-cells = <0>;
 
-			mipi_out_panel: endpoint {
-				remote-endpoint = <&mipi_in_panel>;
+                port@0 {
+                        reg = <0>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        dsi_in_vopb: endpoint@0 {
+                                reg = <0>;
+                                status = "okay";
+				remote-endpoint = <&vopb_out_dsi>;
+                        };
+		};
+		port@1 {
+			reg = <1>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+			dsi_out_panel: endpoint {
+				remote-endpoint = <&dsi_in_panel>;
 			};
 		};
 	};
 
 	panel@0 {
-		compatible = "elida,kd35t133";
+		compatible = "elida,kd35t133", "simple-panel-dsi";
 		reg = <0>;
 		backlight = <&backlight>;
 		iovcc-supply = <&vcc_lcd>;
@@ -363,8 +419,8 @@
 		vdd-supply = <&vcc_lcd>;
 
 		port {
-			mipi_in_panel: endpoint {
-				remote-endpoint = <&mipi_out_panel>;
+			dsi_in_panel: endpoint {
+				remote-endpoint = <&dsi_out_panel>;
 			};
 		};
 	};
@@ -377,6 +433,7 @@
 &gpu {
 	mali-supply = <&vdd_logic>;
 	status = "okay";
+	operating-points-v2 = <&gpu_opp_table>;
 };
 
 &i2c0 {
