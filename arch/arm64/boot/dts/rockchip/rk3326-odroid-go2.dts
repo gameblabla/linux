@@ -14,24 +14,6 @@
 	model = "ODROID-GO Advance";
 	compatible = "hardkernel,rk3326-odroid-go2", "rockchip,rk3326";
 
-	chosen {
-		stdout-path = "serial2:115200n8";
-	};
-
-	core_grf: syscon@ff148000 {
-		compatible = "syscon", "simple-mfd";
-		reg = <0x0 0xff148000 0x0 0x1000>;
-		#address-cells = <1>;
-		#size-cells = <1>;
-
-		pvtm: pvtm {
-			compatible = "rockchip,px30-pvtm";
-			clocks = <&cru SCLK_PVTM>;
-			clock-names = "core";
-			status = "okay";
-		};
-	};
-
 	backlight: backlight {
 		compatible = "pwm-backlight";
 		power-supply = <&vcc_bl>;
@@ -70,6 +52,30 @@
 			248 249 250 251 252 253 254 255>;
 		default-brightness-level = <200>;
 		pwms = <&pwm1 0 25000 0>;
+	};
+
+        chosen {
+                stdout-path = "serial2:115200n8";
+        };
+
+        core_grf: syscon@ff148000 {
+                compatible = "syscon", "simple-mfd";
+                reg = <0x0 0xff148000 0x0 0x1000>;
+                #address-cells = <1>;
+                #size-cells = <1>;
+
+                pvtm: pvtm {
+                        compatible = "rockchip,px30-pvtm";
+                        clocks = <&cru SCLK_PVTM>;
+                        clock-names = "core";
+                        status = "okay";
+                };
+        };
+
+	cpuinfo {
+		compatible = "rockchip,cpuinfo";
+		nvmem-cells = <&cpu_id>;
+		nvmem-cell-names = "id";
 	};
 
         firmware {
