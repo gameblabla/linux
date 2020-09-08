@@ -316,6 +316,7 @@
                         reg-names = "ramoops_mem";
                 };
         };
+
 };
 
 &cpu0 {
@@ -666,10 +667,12 @@
 				};
 			};
 
-			vcc_cam: LDO_REG9 {
-				regulator-name = "vcc_cam";
-				regulator-min-microvolt = <3000000>;
-				regulator-max-microvolt = <3000000>;
+			vcc_wifi: LDO_REG9 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-name = "vcc_wifi";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
 
 				regulator-state-mem {
 					regulator-off-in-suspend;
@@ -814,6 +817,23 @@
         max-frequency = <150000000>;
 };
 
+/*v1.1 only!*/
+&sdio {
+	bus-width = <4>;
+	cap-sd-highspeed;
+	cap-sdio-irq;
+	disable-wp;
+	supports-sdio;
+	ignore-pm-notify;
+	keep-power-in-suspend;
+	status = "okay";
+
+	esp8089: sdio_wifi@1 {
+		compatible = "esp,esp8089";
+	};
+
+};
+
 &tsadc {
 	status = "okay";
 };
@@ -899,6 +919,18 @@
 
 		soc_slppin_slp: soc_slppin_slp {
 			rockchip,pins = <0 RK_PA4 1 &pcfg_pull_none>;
+		};
+	};
+
+	sdio {
+		sdio_gpio: sdio-gpio {
+			rockchip,pins =
+				<1 RK_PC6 RK_FUNC_GPIO &pcfg_pull_up>,
+				<1 RK_PC7 RK_FUNC_GPIO &pcfg_pull_up>,
+				<1 RK_PD0 RK_FUNC_GPIO &pcfg_pull_up>,
+				<1 RK_PD1 RK_FUNC_GPIO &pcfg_pull_up>,
+				<1 RK_PC4 RK_FUNC_GPIO &pcfg_pull_up>,
+				<1 RK_PC5 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 };
