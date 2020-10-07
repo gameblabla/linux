@@ -1,27 +1,10 @@
-/* SPDX-License-Identifier: GPL-2.0 */
-/*  ----------------------------------------------------------------------------
- *  File:   custom_log.h
+/*
+ * (C) COPYRIGHT RockChip Limited. All rights reserved.
  *
- *  Desc:   ChenZhen 偏好的 log 输出的定制实现.
- *
- *          --------------------------------------------------------------------
- *          < 习语 和 缩略语 > :
- *
- *          --------------------------------------------------------------------
- *  Usage:
- *
- *  Note:
- *
- *  Author: ChenZhen
- *
- *  ----------------------------------------------------------------------------
- *  Version:
- *          v1.0
- *  ----------------------------------------------------------------------------
- *  Log:
-	----Fri Nov 19 15:20:28 2010            v1.0
- *
- *  ----------------------------------------------------------------------------
+ * This program is free software and is provided to you under the terms of the
+ * GNU General Public License version 2 as published by the Free Software
+ * Foundation, and any use by you of this program is subject to the terms
+ * of such GNU licence.
  */
 
 #ifndef __CUSTOM_LOG_H__
