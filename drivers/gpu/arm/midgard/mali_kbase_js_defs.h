@@ -1,19 +1,24 @@
 /*
  *
- * (C) COPYRIGHT 2011-2016 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2018 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
  * Foundation, and any use by you of this program is subject to the terms
  * of such GNU licence.
  *
- * A copy of the licence is included with the program, and can also be obtained
- * from Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- * Boston, MA  02110-1301, USA.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you can access it online at
+ * http://www.gnu.org/licenses/gpl-2.0.html.
+ *
+ * SPDX-License-Identifier: GPL-2.0
  *
  */
-
-
 
 
 
@@ -52,27 +57,9 @@ struct kbasep_atom_req {
 	u32 device_nr;
 };
 
-#include "mali_kbase_js_policy_cfs.h"
-
-/* Wrapper Interface - doxygen is elsewhere */
-union kbasep_js_policy {
-	struct kbasep_js_policy_cfs cfs;
-};
-
-/* Wrapper Interface - doxygen is elsewhere */
-union kbasep_js_policy_ctx_info {
-	struct kbasep_js_policy_cfs_ctx cfs;
-};
-
-/* Wrapper Interface - doxygen is elsewhere */
-union kbasep_js_policy_job_info {
-	struct kbasep_js_policy_cfs_job cfs;
-};
-
-
 /** Callback function run on all of a context's jobs registered with the Job
  * Scheduler */
-typedef void (*kbasep_js_policy_ctx_job_cb)(struct kbase_device *kbdev, struct kbase_jd_atom *katom);
+typedef void (*kbasep_js_ctx_job_cb)(struct kbase_device *kbdev, struct kbase_jd_atom *katom);
 
 /**
  * @brief Maximum number of jobs that can be submitted to a job slot whilst
@@ -83,16 +70,6 @@ typedef void (*kbasep_js_policy_ctx_job_cb)(struct kbase_device *kbdev, struct k
  * jobs to be submitted inside the IRQ handler, which increases IRQ latency.
  */
 #define KBASE_JS_MAX_JOB_SUBMIT_PER_SLOT_PER_IRQ 2
-
-/**
- * @brief the IRQ_THROTTLE time in microseconds
- *
- * This will be converted via the GPU's clock frequency into a cycle-count.
- *
- * @note we can make an estimate of the GPU's frequency by periodically
- * sampling its CYCLE_COUNT register
- */
-#define KBASE_JS_IRQ_THROTTLE_TIME_US 20
 
 /**
  * @brief Context attributes
@@ -124,9 +101,7 @@ enum kbasep_js_ctx_attr {
 
 	/** Attribute indicating a context that contains Non-Compute jobs. That is,
 	 * the context has some jobs that are \b not of type @ref
-	 * BASE_JD_REQ_ONLY_COMPUTE. The context usually has
-	 * BASE_CONTEXT_HINT_COMPUTE \b clear, but this depends on the HW
-	 * workarounds in use in the Job Scheduling Policy.
+	 * BASE_JD_REQ_ONLY_COMPUTE.
 	 *
 	 * @note A context can be both 'Compute' and 'Non Compute' if it contains
 	 * both types of jobs.
@@ -171,25 +146,48 @@ enum {
 /** Combination of KBASE_JS_ATOM_DONE_<...> bits */
 typedef u32 kbasep_js_atom_done_code;
 
-/**
- * Data used by the scheduler that is unique for each Address Space.
- *
- * This is used in IRQ context and hwaccess_lock must be held whilst accessing
- * this data (inculding reads and atomic decisions based on the read).
+/*
+ * Context scheduling mode defines for kbase_device::js_ctx_scheduling_mode
  */
-struct kbasep_js_per_as_data {
-	/**
-	 * Ref count of whether this AS is busy, and must not be scheduled out
-	 *
-	 * When jobs are running this is always positive. However, it can still be
-	 * positive when no jobs are running. If all you need is a heuristic to
-	 * tell you whether jobs might be running, this should be sufficient.
+enum {
+	/*
+	 * In this mode, higher priority atoms will be scheduled first,
+	 * regardless of the context they belong to. Newly-runnable higher
+	 * priority atoms can preempt lower priority atoms currently running on
+	 * the GPU, even if they belong to a different context.
 	 */
-	int as_busy_refcount;
+	KBASE_JS_SYSTEM_PRIORITY_MODE = 0,
 
-	/** Pointer to the current context on this address space, or NULL for no context */
-	struct kbase_context *kctx;
+	/*
+	 * In this mode, the highest-priority atom will be chosen from each
+	 * context in turn using a round-robin algorithm, so priority only has
+	 * an effect within the context an atom belongs to. Newly-runnable
+	 * higher priority atoms can preempt the lower priority atoms currently
+	 * running on the GPU, but only if they belong to the same context.
+	 */
+	KBASE_JS_PROCESS_LOCAL_PRIORITY_MODE,
+
+	/* Must be the last in the enum */
+	KBASE_JS_PRIORITY_MODE_COUNT,
 };
+
+/*
+ * Internal atom priority defines for kbase_jd_atom::sched_prio
+ */
+enum {
+	KBASE_JS_ATOM_SCHED_PRIO_HIGH = 0,
+	KBASE_JS_ATOM_SCHED_PRIO_MED,
+	KBASE_JS_ATOM_SCHED_PRIO_LOW,
+	KBASE_JS_ATOM_SCHED_PRIO_COUNT,
+};
+
+/* Invalid priority for kbase_jd_atom::sched_prio */
+#define KBASE_JS_ATOM_SCHED_PRIO_INVALID -1
+
+/* Default priority in the case of contexts with no atoms, or being lenient
+ * about invalid priorities from userspace.
+ */
+#define KBASE_JS_ATOM_SCHED_PRIO_DEFAULT KBASE_JS_ATOM_SCHED_PRIO_MED
 
 /**
  * @brief KBase Device Data Job Scheduler sub-structure
@@ -211,10 +209,8 @@ struct kbasep_js_device_data {
 	struct runpool_irq {
 		/** Bitvector indicating whether a currently scheduled context is allowed to submit jobs.
 		 * When bit 'N' is set in this, it indicates whether the context bound to address space
-		 * 'N' (per_as_data[N].kctx) is allowed to submit jobs.
-		 *
-		 * It is placed here because it's much more memory efficient than having a u8 in
-		 * struct kbasep_js_per_as_data to store this flag  */
+		 * 'N' is allowed to submit jobs.
+		 */
 		u16 submit_allowed;
 
 		/** Context Attributes:
@@ -232,9 +228,6 @@ struct kbasep_js_device_data {
 		 * the compiler can optimize for that never happening (thus, no masking
 		 * is required on updating the variable) */
 		s8 ctx_attr_ref_count[KBASEP_JS_CTX_ATTR_COUNT];
-
-		/** Data that is unique for each AS */
-		struct kbasep_js_per_as_data per_as_data[BASE_MAX_NR_AS];
 
 		/*
 		 * Affinity management and tracking
@@ -279,27 +272,17 @@ struct kbasep_js_device_data {
 	/**
 	 * List of contexts that can currently be pulled from
 	 */
-	struct list_head ctx_list_pullable[BASE_JM_MAX_NR_SLOTS];
+	struct list_head ctx_list_pullable[BASE_JM_MAX_NR_SLOTS][KBASE_JS_ATOM_SCHED_PRIO_COUNT];
 	/**
 	 * List of contexts that can not currently be pulled from, but have
 	 * jobs currently running.
 	 */
-	struct list_head ctx_list_unpullable[BASE_JM_MAX_NR_SLOTS];
-
-	u16 as_free;				/**< Bitpattern of free Address Spaces */
+	struct list_head ctx_list_unpullable[BASE_JM_MAX_NR_SLOTS][KBASE_JS_ATOM_SCHED_PRIO_COUNT];
 
 	/** Number of currently scheduled user contexts (excluding ones that are not submitting jobs) */
 	s8 nr_user_contexts_running;
 	/** Number of currently scheduled contexts (including ones that are not submitting jobs) */
 	s8 nr_all_contexts_running;
-
-	/**
-	 * Policy-specific information.
-	 *
-	 * Refer to the structure defined by the current policy to determine which
-	 * locks must be held when accessing this.
-	 */
-	union kbasep_js_policy policy;
 
 	/** Core Requirements to match up with base_js_atom's core_req memeber
 	 * @note This is a write-once member, and so no locking is required to read */
@@ -315,8 +298,6 @@ struct kbasep_js_device_data {
 	u32 gpu_reset_ticks_cl;	     /*< Value for JS_RESET_TICKS_CL */
 	u32 gpu_reset_ticks_dumping; /*< Value for JS_RESET_TICKS_DUMPING */
 	u32 ctx_timeslice_ns;		 /**< Value for JS_CTX_TIMESLICE_NS */
-	u32 cfs_ctx_runtime_init_slices; /**< Value for DEFAULT_JS_CFS_CTX_RUNTIME_INIT_SLICES */
-	u32 cfs_ctx_runtime_min_slices;	 /**< Value for  DEFAULT_JS_CFS_CTX_RUNTIME_MIN_SLICES */
 
 	/**< Value for JS_SOFT_JOB_TIMEOUT */
 	atomic_t soft_job_timeout_ms;
@@ -349,19 +330,6 @@ struct kbasep_js_device_data {
  * scheduling information.
  */
 struct kbasep_js_kctx_info {
-	/**
-	 * Runpool substructure. This must only be accessed whilst the Run Pool
-	 * mutex ( kbasep_js_device_data::runpool_mutex ) is held.
-	 *
-	 * In addition, the hwaccess_lock may need to be held for certain
-	 * sub-members.
-	 *
-	 * @note some of the members could be moved into struct kbasep_js_device_data for
-	 * improved d-cache/tlb efficiency.
-	 */
-	struct {
-		union kbasep_js_policy_ctx_info policy_ctx;	/**< Policy-specific context */
-	} runpool;
 
 	/**
 	 * Job Scheduler Context information sub-structure. These members are
@@ -414,8 +382,6 @@ struct kbasep_js_atom_retained_state {
 	base_jd_core_req core_req;
 	/* priority */
 	int sched_priority;
-	/** Job Slot to retry submitting to if submission from IRQ handler failed */
-	int retry_submit_on_slot;
 	/* Core group atom was executed on */
 	u32 device_nr;
 
@@ -442,22 +408,6 @@ struct kbasep_js_atom_retained_state {
  */
 #define KBASEP_JS_TICK_RESOLUTION_US 1
 
-/*
- * Internal atom priority defines for kbase_jd_atom::sched_prio
- */
-enum {
-	KBASE_JS_ATOM_SCHED_PRIO_HIGH = 0,
-	KBASE_JS_ATOM_SCHED_PRIO_MED,
-	KBASE_JS_ATOM_SCHED_PRIO_LOW,
-	KBASE_JS_ATOM_SCHED_PRIO_COUNT,
-};
-
-/* Invalid priority for kbase_jd_atom::sched_prio */
-#define KBASE_JS_ATOM_SCHED_PRIO_INVALID -1
-
-/* Default priority in the case of contexts with no atoms, or being lenient
- * about invalid priorities from userspace */
-#define KBASE_JS_ATOM_SCHED_PRIO_DEFAULT KBASE_JS_ATOM_SCHED_PRIO_MED
 
 	  /** @} *//* end group kbase_js */
 	  /** @} *//* end group base_kbase_api */
