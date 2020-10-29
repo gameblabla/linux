@@ -111,7 +111,7 @@ static void rk_pm_power_off_delay_work(struct work_struct *work)
 	rk_pm_disable_regulator(kbdev);
 
 	platform->is_powered = false;
-	KBASE_TIMELINE_GPU_POWER(kbdev, 0);
+	//KBASE_TIMELINE_GPU_POWER(kbdev, 0);
 	wake_unlock(&platform->wake_lock);
 }
 
@@ -242,7 +242,7 @@ static int rk_pm_callback_power_on(struct kbase_device *kbdev)
 	}
 
 	platform->is_powered = true;
-	KBASE_TIMELINE_GPU_POWER(kbdev, 1);
+	//KBASE_TIMELINE_GPU_POWER(kbdev, 1);
 	wake_lock(&platform->wake_lock);
 
 	return ret;
@@ -395,6 +395,7 @@ static ssize_t utilisation_show(struct device *dev,
 				struct device_attribute *attr,
 				char *buf)
 {
+#if 0
 	struct kbase_device *kbdev = dev_get_drvdata(dev);
 	struct rk_context *platform = get_rk_context(kbdev);
 	ssize_t ret = 0;
@@ -403,9 +404,9 @@ static ssize_t utilisation_show(struct device *dev,
 	unsigned long busy_time;
 	unsigned long utilisation;
 
-	kbase_pm_reset_dvfs_utilisation(kbdev);
+	//kbase_pm_reset_dvfs_utilisation(kbdev);
 	usleep_range(period_in_us, period_in_us + 100);
-	kbase_pm_get_dvfs_utilisation(kbdev, &total_time, &busy_time);
+	//kbase_pm_get_dvfs_utilisation(kbdev, &total_time, &busy_time);
 	/* 'devfreq_dev_profile' instance registered to devfreq
 	 * also uses kbase_pm_reset_dvfs_utilisation
 	 * and kbase_pm_get_dvfs_utilisation.
@@ -413,10 +414,12 @@ static ssize_t utilisation_show(struct device *dev,
 	 */
 	D("total_time : %lu, busy_time : %lu.", total_time, busy_time);
 
-	utilisation = busy_time * 100 / total_time;
-	ret += snprintf(buf, PAGE_SIZE, "%ld\n", utilisation);
+	//utilisation = busy_time * 100 / total_time;
+	//ret += snprintf(buf, PAGE_SIZE, "%ld\n", utilisation);
 
 	return ret;
+#endif
+    return 0;
 }
 
 static DEVICE_ATTR_RW(utilisation_period);
