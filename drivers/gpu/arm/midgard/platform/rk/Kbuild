@@ -12,6 +12,6 @@
 #
 #
 
-SRC += \
+bifrost_kbase-y += \
 	$(MALI_PLATFORM_DIR)/mali_kbase_config_rk.o \
 

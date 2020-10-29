@@ -1,6 +1,5 @@
 /*
- *
- * (C) COPYRIGHT ARM Limited. All rights reserved.
+ * (C) COPYRIGHT RockChip Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -21,12 +20,34 @@
 #include <linux/of.h>
 #include <linux/delay.h>
 #include <linux/nvmem-consumer.h>
-#include <linux/rockchip/cpu.h>
 #include <linux/soc/rockchip/pvtm.h>
 #include <linux/thermal.h>
 #include <soc/rockchip/rockchip_opp_select.h>
 
 #include "mali_kbase_rk.h"
+
+#define MAX_PROP_NAME_LEN	3
+#define LEAKAGE_TABLE_END	~1
+#define LEAKAGE_INVALID		0xff
+
+struct pvtm_config {
+	unsigned int freq;
+	unsigned int volt;
+	unsigned int ch[2];
+	unsigned int sample_time;
+	unsigned int num;
+	unsigned int err;
+	unsigned int ref_temp;
+	int temp_prop[2];
+	const char *tz_name;
+	struct thermal_zone_device *tz;
+};
+
+struct volt_sel_table {
+	int min;
+	int max;
+	int sel;
+};
 
 /**
  * @file mali_kbase_config_rk.c
@@ -431,55 +452,8 @@ static void kbase_platform_rk_remove_sysfs_files(struct device *dev)
 	device_remove_file(dev, &dev_attr_utilisation);
 }
 
-static int rk3288_get_soc_info(struct device *dev, struct device_node *np,
-			       int *bin, int *process)
-{
-	int ret = -EINVAL, value = -EINVAL;
-	char *name;
-
-	if (!bin)
-		goto out;
-
-	if (soc_is_rk3288w())
-		name = "performance-w";
-	else
-		name = "performance";
-	if (of_property_match_string(np, "nvmem-cell-names", name) >= 0) {
-		ret = rockchip_get_efuse_value(np, name, &value);
-		if (ret) {
-			dev_err(dev, "Failed to get soc performance value\n");
-			goto out;
-		}
-		if (value & 0x2)
-			*bin = 3;
-		else if (value & 0x01)
-			*bin = 2;
-		else
-			*bin = 0;
-	} else {
-		dev_err(dev, "Failed to get bin config\n");
-	}
-	if (*bin >= 0)
-		dev_info(dev, "bin=%d\n", *bin);
-
-out:
-	return ret;
-}
-
-static const struct of_device_id rockchip_mali_of_match[] = {
-	{
-		.compatible = "rockchip,rk3288",
-		.data = (void *)&rk3288_get_soc_info,
-	},
-	{
-		.compatible = "rockchip,rk3288w",
-		.data = (void *)&rk3288_get_soc_info,
-	},
-	{},
-};
-
 int kbase_platform_rk_init_opp_table(struct kbase_device *kbdev)
 {
-	return rockchip_init_opp_table(kbdev->dev, rockchip_mali_of_match,
+	return rockchip_init_opp_table(kbdev->dev, NULL,
 				       "gpu_leakage", "mali");
 }
