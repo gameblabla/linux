@@ -950,8 +950,15 @@ static int rk817_suspend(struct snd_soc_codec *codec)
 static int rk817_resume(struct snd_soc_codec *codec)
 {
 	struct rk817_codec_priv *rk817 = snd_soc_codec_get_drvdata(codec);
+	unsigned int speaker_vol = snd_soc_read(codec, RK817_CODEC_DDAC_VOLL);
+	unsigned int capture_vol = snd_soc_read(codec, RK817_CODEC_DADC_VOLL);
 
 	rk817_codec_power_up(codec, RK817_CODEC_ALL);
+
+	snd_soc_write(codec, RK817_CODEC_DDAC_VOLL, speaker_vol);
+	snd_soc_write(codec, RK817_CODEC_DDAC_VOLR, speaker_vol);
+	snd_soc_write(codec, RK817_CODEC_DADC_VOLL, capture_vol);
+	snd_soc_write(codec, RK817_CODEC_DADC_VOLR, capture_vol);
 
 	DBG("[%s] playback path %ld, spk %d, hp %d\n", __func__,
 		rk817->playback_path,
