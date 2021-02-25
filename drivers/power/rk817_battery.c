@@ -2062,7 +2062,7 @@ static int rk817_battery_get_property(struct power_supply *psy,
 		/*val->intval = (battery->dsoc  + 500) / 1000;
 		if (battery->pdata->bat_mode == MODE_VIRTUAL)
 			val->intval = VIRTUAL_SOC;*/
-		val->intval = rk817_battery_rg351p_capacity_get(battery->voltage_avg,rk817_bat_get_charge_state(battery))
+		val->intval = rk817_battery_rg351p_capacity_get(battery->voltage_avg,rk817_bat_get_charge_state(battery));
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
 		val->intval = POWER_SUPPLY_HEALTH_GOOD;
